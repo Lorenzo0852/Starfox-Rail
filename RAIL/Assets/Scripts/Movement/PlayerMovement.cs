@@ -9,6 +9,7 @@ public class PlayerMovement : MonoBehaviour
 {
     #region Variable declaration
     private Transform playerModel;
+    private bool hasHitObstacle = false;
 
     [Header("Settings")]
     public bool joystick = true;
@@ -20,6 +21,8 @@ public class PlayerMovement : MonoBehaviour
     public float lookSpeed = 340;
     public float forwardSpeed = 6;
     public float spinMovementX = 1;
+    public float hitSpeedPenalty = 10;
+    public float timeToRecoverSpeed = 1.66f;
 
     [Space]
 
@@ -53,29 +56,46 @@ public class PlayerMovement : MonoBehaviour
 
         //Queremos manejar ciertos parámetros de movimientos continuamente.
         LocalMove(h, v, xySpeed);
-        RotationLook(h,v, lookSpeed);
+        RotationLook(h, v, lookSpeed);
         HorizontalLean(playerModel, h, 80, .1f);
         //
 
-        if (Input.GetButtonDown("Jump"))
-            Boost(true);
-
-        if (Input.GetButtonUp("Jump"))
-            Boost(false);
-
-        if (Input.GetButtonDown("Fire3"))
-            Break(true);
-
-        if (Input.GetButtonUp("Fire3"))
-            Break(false);
-
-        if (Input.GetButtonDown("TriggerL") || Input.GetButtonDown("TriggerR"))
+        if(hasHitObstacle == false)
         {
-            int dir = Input.GetButtonDown("TriggerL") ? -1 : 1;
-            QuickSpin(dir);
+            if (Input.GetButtonDown("Jump"))
+                Boost(true);
+
+            if (Input.GetButtonUp("Jump"))
+                Boost(false);
+
+            if (Input.GetButtonDown("Fire3"))
+                Break(true);
+
+            if (Input.GetButtonUp("Fire3"))
+                Break(false);
+
+            if (Input.GetButtonDown("TriggerL") || Input.GetButtonDown("TriggerR"))
+            {
+                int dir = Input.GetButtonDown("TriggerL") ? -1 : 1;
+                QuickSpin(dir);
+            }
         }
+        
+        if(hasHitObstacle)
+        RecoverOnHit();
+    }
 
-
+    /// <summary>
+    /// Restarts the speed and color when the player hits a collider.
+    /// </summary>
+    private void RecoverOnHit()
+    {
+        if (dolly.m_Speed <= forwardSpeed / hitSpeedPenalty)
+        {
+            transform.GetComponentsInChildren<Renderer>()[0].material.DOColor(Color.white, timeToRecoverSpeed);
+            DOVirtual.Float(dolly.m_Speed, forwardSpeed, timeToRecoverSpeed, SetSpeed);
+            hasHitObstacle = false;
+        }
     }
 
     /// <summary>
@@ -204,7 +224,6 @@ public class PlayerMovement : MonoBehaviour
     /// <param name="state">Estado que activa/desactiva el boost.</param>
     void Boost(bool state)
     {
-
         if (state)
         {
             cameraParent.GetComponentInChildren<CinemachineImpulseSource>().GenerateImpulse();
@@ -253,8 +272,16 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        print("COLLIDER_HIT");
+        if(other.tag != "Ring")
+        {
+            hasHitObstacle = true;
+            transform.GetComponentsInChildren<Renderer>()[0].material.DOColor(Color.red, .10f);
+            transform.DOLocalMove(new Vector3(transform.localPosition.x, transform.localPosition.y + 3, transform.localPosition.z), .66f);
+            DOVirtual.Float(dolly.m_Speed, forwardSpeed / hitSpeedPenalty, .10f, SetSpeed);
+            print("COLLIDER_HIT");
+        }
     }
+
     private void OnCollisionEnter(Collision collision)
     {
         print("COLLISION_HIT");
